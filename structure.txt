@@ -1,0 +1,41 @@
+ragmint/
+│
+├── __init__.py
+├── tuner.py                 # Main class (ragmint) — grid/random/Bayesian search logic
+│
+├── core/                    # Core RAG pipeline components
+│   ├── __init__.py
+│   ├── pipeline.py          # RAGPipeline: retrieval, rerank, generation
+│   ├── retriever.py         # FAISS / Chroma / ElasticSearch retrievers
+│   ├── reranker.py          # MMR / CrossEncoder rerankers
+│   ├── embeddings.py        # OpenAI / HuggingFace embedding wrappers
+│   ├── chunking.py          # Chunking/splitting logic
+│   └── evaluation.py        # Evaluator (faithfulness, recall, latency, etc.)
+│
+├── utils/                   # Helper functions and constants
+│   ├── __init__.py
+│   ├── logger.py            # Centralized logger with tqdm + colors
+│   ├── metrics.py           # Optional extra metrics (BLEU, ROUGE, etc.)
+│   ├── caching.py           # Embedding/retrieval caching
+│   └── data_loader.py       # JSON/CSV loading utilities
+│
+├── configs/                 # Configuration templates (optional)
+│   ├── default.yaml
+│   └── example_grid.yaml
+│
+├── experiments/             # Run configs and results
+│   ├── __init__.py
+│   ├── validation_qa.json   # Validation data (QA pairs)
+│   └── results/             # Auto-saved results, metrics, and plots
+│       ├── run_001.json
+│       ├── run_002.json
+│       └── best_config.json
+│
+├── tests/                   # Unit tests
+│   ├── __init__.py
+│   ├── test_retriever.py
+│   ├── test_pipeline.py
+│   ├── test_optimizer.py
+│   └── test_evaluator.py
+│
+└── main.py                  # Example script: runs ragmint with selected search type
