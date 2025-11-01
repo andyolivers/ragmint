@@ -1,6 +1,6 @@
 # Ragmint
 
-![](/images/ragmint.png)
+![](/assets/images/ragmint-banner.png)
 
 **Ragmint** (Retrieval-Augmented Generation Model Inspection & Tuning) is a modular Python library for optimizing, evaluating, and tuning RAG (Retrieval-Augmented Generation) pipelines.
 
