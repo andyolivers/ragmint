@@ -9,7 +9,7 @@ description = "A modular framework for evaluating and optimizing RAG pipelines."
 readme = "README.md"
 license = { text = "Apache License 2.0" }
 authors = [
-  { name = "Andy Olivers", email = "andy@andyolivers.com" }
+  { name = "Andre Oliveira", email = "oandreoliveira@outlook.com" }
 ]
 keywords = ["RAG", "LLM", "retrieval", "optimization", "AI", "evaluation"]
 requires-python = ">=3.9"
@@ -22,6 +22,7 @@ dependencies = [
   "pyyaml",
   "chromadb>=0.4",
   "faiss-cpu; sys_platform != 'darwin'",
+  "optuna>=3.0",
   "pytest",
   "colorama"
 ]
@@ -32,9 +33,11 @@ Documentation = "https://andyolivers.com"
 Issues = "https://github.com/andyolivers/ragmint/issues"
 
 [tool.setuptools]
-packages = ["ragmint"]
 include-package-data = true
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.pytest.ini_options]
-testpaths = ["ragmint/tests"]
+testpaths = ["tests"]
 addopts = "-v"

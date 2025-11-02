@@ -1,0 +1,25 @@
+# Example grid search configuration for RAGMint
+
+grid_search:
+  retriever.top_k: [3, 5, 8]
+  reranker.lambda_param: [0.3, 0.5, 0.7]
+  chunking.chunk_size: [300, 500, 700]
+  embeddings.backend: ["huggingface", "openai"]
+  generator.temperature: [0.2, 0.5]
+  evaluation.metrics: [["faithfulness"], ["faithfulness", "bleu"]]
+
+random_search:
+  n_trials: 20
+  search_space:
+    retriever.top_k: [3, 10]
+    reranker.lambda_param: [0.1, 0.9]
+    generator.temperature: [0.1, 0.7]
+    chunking.chunk_size: [200, 800]
+
+bayesian_optimization:
+  n_trials: 25
+  parameters:
+    retriever.top_k: [3, 10]
+    reranker.lambda_param: [0.1, 0.9]
+    chunking.chunk_size: [200, 700]
+    generator.temperature: [0.1, 0.6]
