@@ -1,0 +1,70 @@
+# ---- System files ----
+.DS_Store
+.idea/
+.vscode/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.Python
+.env
+.venv
+env/
+venv/
+ENV/
+.ipynb_checkpoints/
+
+# ---- Build / packaging ----
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.manifest
+*.spec
+
+# ---- Logs and temp ----
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.cache/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+.pyre/
+
+# ---- IDEs ----
+# Already added:
+# .idea/
+# .vscode/
+
+# ---- Configs ----
+*.env.local
+*.env.production
+*.env.development
+
+# ---- RAGMint specific ----
+# Ignore raw datasets and local embeddings
+data/raw/
+data/interim/
+data/tmp/
+outputs/
+models/
+notebooks/
+
+# ---- OS ----
+Thumbs.db
+
+structure.txt
