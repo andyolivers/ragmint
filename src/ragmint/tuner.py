@@ -90,7 +90,7 @@ class RAGMint:
         search_type: str = "random",
         trials: int = 10,
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        validation = load_validation_set(validation_set)
+        validation = load_validation_set(validation_set or "default")
 
         search_space = {
             "retriever": self.retrievers,

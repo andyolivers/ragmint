@@ -76,6 +76,39 @@ print(result)
 ```
 
 ---
+## 🧪 Dataset Options
+
+Ragmint can automatically load evaluation datasets for your RAG pipeline:
+
+| Mode | Example | Description |
+|------|----------|-------------|
+| 🧱 **Default** | `validation_set=None` | Uses built-in `experiments/validation_qa.json` |
+| 📁 **Custom File** | `validation_set="data/my_eval.json"` | Load your own QA dataset (JSON or CSV) |
+| 🌐 **Hugging Face Dataset** | `validation_set="squad"` | Automatically downloads benchmark datasets (requires `pip install datasets`) |
+
+### Example
+
+```python
+from ragmint.tuner import RAGMint
+
+ragmint = RAGMint(
+    docs_path="data/docs/",
+    retrievers=["faiss", "chroma"],
+    embeddings=["text-embedding-3-small"],
+    rerankers=["mmr"],
+)
+
+# Use built-in default
+ragmint.optimize(validation_set=None)
+
+# Use Hugging Face benchmark
+ragmint.optimize(validation_set="squad")
+
+# Use your own dataset
+ragmint.optimize(validation_set="data/custom_qa.json")
+```
+
+---
 
 ## 🧩 Folder Structure
 
