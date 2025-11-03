@@ -189,4 +189,4 @@ Licensed under the **Apache License 2.0** — free for personal, research, and c
 
 **André Oliveira**  
 [andyolivers.com](https://andyolivers.com)  
-_Data Scientist | AI Engineer
+Data Scientist | AI Engineer
