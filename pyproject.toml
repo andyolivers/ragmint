@@ -43,3 +43,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
+
+[tool.setuptools.package-data]
+ragmint = ["experiments/*.json"]
+
