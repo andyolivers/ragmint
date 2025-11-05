@@ -10,17 +10,19 @@
 
 **Ragmint** (Retrieval-Augmented Generation Model Inspection & Tuning) is a modular, developer-friendly Python library for **evaluating, optimizing, and tuning RAG (Retrieval-Augmented Generation) pipelines**.
 
-It provides a complete toolkit for **retriever selection**, **embedding model tuning**, and **automated RAG evaluation** with support for **Optuna-based Bayesian optimization**.
+It provides a complete toolkit for **retriever selection**, **embedding model tuning**, and **automated RAG evaluation** with support for **Optuna-based Bayesian optimization**, **Auto-RAG tuning**, and **explainability** through Gemini or Claude.
 
 ---
 
 ## ✨ Features
 
 - ✅ **Automated hyperparameter optimization** (Grid, Random, Bayesian via Optuna)  
+- 🤖 **Auto-RAG Tuner** — dynamically recommends retriever–embedding pairs based on corpus size  
+- 🧠 **Explainability Layer** — interprets RAG performance via Gemini or Claude APIs  
+- 🏆 **Leaderboard Tracking** — stores and ranks experiment runs via JSON or external DB  
 - 🔍 **Built-in RAG evaluation metrics** — faithfulness, recall, BLEU, ROUGE, latency  
 - ⚙️ **Retrievers** — FAISS, Chroma, ElasticSearch  
 - 🧩 **Embeddings** — OpenAI, HuggingFace  
-- 🧠 **Rerankers** — MMR, CrossEncoder (extensible via plugin interface)  
 - 💾 **Caching, experiment tracking, and reproducibility** out of the box  
 - 🧰 **Clean modular structure** for easy integration in research and production setups  
 
@@ -76,6 +78,7 @@ print(result)
 ```
 
 ---
+
 ## 🧪 Dataset Options
 
 Ragmint can automatically load evaluation datasets for your RAG pipeline:
@@ -110,47 +113,99 @@ ragmint.optimize(validation_set="data/custom_qa.json")
 
 ---
 
+## 🧠 Auto-RAG Tuner
+
+The **AutoRAGTuner** automatically recommends retriever–embedding combinations
+based on corpus size and average document length.
+
+```python
+from ragmint.autotuner import AutoRAGTuner
+
+corpus_stats = {"size": 5000, "avg_len": 250}
+tuner = AutoRAGTuner(corpus_stats)
+recommendation = tuner.recommend()
+print(recommendation)
+# Example output: {"retriever": "Chroma", "embedding_model": "SentenceTransformers"}
+```
+
+---
+
+## 🏆 Leaderboard Tracking
+
+Track and visualize your best experiments across runs.
+
+```python
+from ragmint.leaderboard import Leaderboard
+
+lb = Leaderboard("experiments/leaderboard.json")
+lb.add_entry({"trial": 1, "faithfulness": 0.87, "latency": 0.12})
+lb.show_top(3)
+```
+
+---
+
+## 🧠 Explainability with Gemini / Claude
+
+Compare two RAG configurations and receive natural language insights
+on **why** one performs better.
+
+```python
+from ragmint.explainer import explain_results
+
+config_a = {"retriever": "FAISS", "embedding_model": "OpenAI"}
+config_b = {"retriever": "Chroma", "embedding_model": "SentenceTransformers"}
+
+explanation = explain_results(config_a, config_b, model="gemini")
+print(explanation)
+```
+
+> Set your API keys in a `.env` file or via environment variables:
+> ```
+> export GOOGLE_API_KEY="your_gemini_key"
+> export ANTHROPIC_API_KEY="your_claude_key"
+> ```
+
+---
+
 ## 🧩 Folder Structure
 
 ```
 ragmint/
 ├── core/
-│   ├── pipeline.py         # RAGPipeline implementation
-│   ├── retriever.py        # Retriever logic (FAISS, Chroma)
-│   ├── reranker.py         # MMR + CrossEncoder rerankers
-│   └── embedding.py        # Embedding backends
-├── tuner.py                # Grid, Random, Bayesian optimization (Optuna)
-├── utils/                  # Metrics, logging, caching helpers
-├── configs/                # Default experiment configs
-├── experiments/            # Saved experiment results
-├── tests/                  # Unit tests for all components
-├── main.py                 # CLI entrypoint for tuning
-└── pyproject.toml          # Project dependencies & build metadata
+│   ├── pipeline.py
+│   ├── retriever.py
+│   ├── reranker.py
+│   ├── embedding.py
+│   └── evaluation.py
+├── autotuner.py
+├── explainer.py
+├── leaderboard.py
+├── tuner.py
+├── utils/
+├── configs/
+├── experiments/
+├── tests/
+└── main.py
 ```
 
 ---
 
 ## 🧪 Running Tests
 
-To verify your setup:
-
 ```bash
 pytest -v
 ```
 
-Or to test a specific component (e.g., reranker):
-
+To include integration tests with Gemini or Claude APIs:
 ```bash
-pytest tests/test_reranker.py -v
+pytest -m integration
 ```
-
-All tests are designed for **Pytest** and run with lightweight mock data.
 
 ---
 
 ## ⚙️ Configuration via `pyproject.toml`
 
-Your `pyproject.toml` automatically includes:
+Your `pyproject.toml` includes all required dependencies:
 
 ```toml
 [project]
@@ -165,6 +220,8 @@ dependencies = [
     "pytest",
     "openai",
     "tqdm",
+    "google-generativeai",
+    "google-genai",
 ]
 ```
 
@@ -172,10 +229,10 @@ dependencies = [
 
 ## 📊 Example Experiment Workflow
 
-1. Define your retriever and reranker configuration in YAML  
-2. Launch an optimization search (Grid, Random, or Bayesian)  
-3. Ragmint evaluates combinations automatically and reports top results  
-4. Export best parameters for production pipelines  
+1. Define your retriever, embedding, and reranker setup  
+2. Launch optimization (Grid, Random, Bayesian) or AutoTune  
+3. Compare performance with explainability  
+4. Persist results to leaderboard for later inspection  
 
 ---
 
@@ -188,7 +245,7 @@ flowchart TD
     C --> D[Reranker]
     D --> E[Generator]
     E --> F[Evaluation]
-    F --> G[Optuna Tuner]
+    F --> G[Optuna / AutoRAGTuner]
     G -->|Best Params| B
 ```
 
@@ -198,8 +255,9 @@ flowchart TD
 
 ```
 [INFO] Starting Bayesian optimization with Optuna
-[INFO] Trial 7 finished: recall=0.83, latency=0.42s
+[INFO] Trial 7 finished: faithfulness=0.83, latency=0.42s
 [INFO] Best parameters: {'lambda_param': 0.6, 'retriever': 'faiss'}
+[INFO] AutoRAGTuner: Suggested retriever=Chroma for medium corpus
 ```
 
 ---
@@ -207,8 +265,9 @@ flowchart TD
 ## 🧠 Why Ragmint?
 
 - Built for **RAG researchers**, **AI engineers**, and **LLM ops**  
-- Works with **LangChain**, **LlamaIndex**, or standalone RAG setups  
-- Designed for **extensibility** — plug in your own models, retrievers, or metrics  
+- Works with **LangChain**, **LlamaIndex**, or standalone setups  
+- Designed for **extensibility** — plug in your own retrievers, models, or metrics  
+- Integrated **explainability and leaderboard** modules for research and production  
 
 ---
 

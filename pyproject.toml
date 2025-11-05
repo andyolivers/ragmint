@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ragmint"
-version = "0.1.1"
+version = "0.2.0"
 description = "A modular framework for evaluating and optimizing RAG pipelines."
 readme = "README.md"
 license = { text = "Apache License 2.0" }
@@ -24,7 +24,9 @@ dependencies = [
   "faiss-cpu; sys_platform != 'darwin'",
   "optuna>=3.0",
   "pytest",
-  "colorama"
+  "colorama",
+  "google-generativeai>=0.8.0",
+  "supabase>=2.4.0"
 ]
 
 [project.urls]

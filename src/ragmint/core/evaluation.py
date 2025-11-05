@@ -25,3 +25,14 @@ class Evaluator:
 
     def _similarity(self, a: str, b: str) -> float:
         return SequenceMatcher(None, a, b).ratio()
+
+def evaluate_config(config, validation_data):
+    evaluator = Evaluator()
+    results = []
+    for sample in validation_data:
+        query = sample.get("query", "")
+        answer = sample.get("answer", "")
+        context = sample.get("context", "")
+        results.append(evaluator.evaluate(query, answer, context))
+    return results
+
