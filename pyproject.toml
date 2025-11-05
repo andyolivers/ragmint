@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ragmint"
-version = "0.2.2"
+version = "0.2.3"
 description = "A modular framework for evaluating and optimizing RAG pipelines."
 readme = "README.md"
 license = { text = "Apache License 2.0" }
@@ -36,14 +36,18 @@ Issues = "https://github.com/andyolivers/ragmint/issues"
 
 [tool.setuptools]
 include-package-data = true
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+ragmint = ["experiments/*.json"]
+
+[tool.setuptools.data-files]
+"." = ["README.md", "LICENSE"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
-
-[tool.setuptools.package-data]
-ragmint = ["experiments/*.json"]
 
