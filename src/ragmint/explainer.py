@@ -7,9 +7,12 @@ outperforms another. Falls back gracefully if no API key is provided.
 
 import os
 import json
+from dotenv import load_dotenv
 
+# Load environment variables from .env file if available
+load_dotenv()
 
-def explain_results(results_a: dict, results_b: dict, model: str = "gemini-1.5-pro") -> str:
+def explain_results(results_a: dict, results_b: dict, model: str = "gemini-2.5-flash-lite") -> str:
     """
     Generate a natural-language explanation comparing two RAG experiment results.
     Priority:
@@ -26,8 +29,7 @@ def explain_results(results_a: dict, results_b: dict, model: str = "gemini-1.5-p
     """
 
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-    google_key = os.getenv("GEMINI_API_KEY")
-
+    google_key = os.getenv("GOOGLE_API_KEY")  # fixed var name
 
     # 1️⃣ Try Anthropic Claude first
     if anthropic_key:

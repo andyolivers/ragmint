@@ -1,11 +1,12 @@
 import numpy as np
 from ragmint.core.retriever import Retriever
+from ragmint.core.embeddings import Embeddings
 
 
 def test_retrieve_basic():
-    embeddings = [np.random.rand(5) for _ in range(3)]
     docs = ["doc A", "doc B", "doc C"]
-    retriever = Retriever(embeddings, docs)
+    embedder = Embeddings(backend="dummy")
+    retriever = Retriever(embedder=embedder, documents=docs)
 
     results = retriever.retrieve("sample query", top_k=2)
     assert isinstance(results, list)

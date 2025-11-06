@@ -46,7 +46,7 @@ def test_optimize_ragmint(tmp_path, validation_mode, monkeypatch):
     rag = RAGMint(
         docs_path=docs_path,
         retrievers=["faiss"],
-        embeddings=["text-embedding-3-small"],
+        embeddings=["all-MiniLM-L6-v2"],
         rerankers=["mmr"]
     )
 

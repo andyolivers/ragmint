@@ -7,7 +7,7 @@ from ragmint.explainer import explain_results
 def test_real_gemini_explanation():
     """Run real Gemini call if GOOGLE_API_KEY is set."""
     if not os.getenv("GEMINI_API_KEY"):
-        pytest.skip("GOOGLE_API_KEY not set")
+        pytest.skip("GEMINI_API_KEY not set")
 
     config_a = {"retriever": "FAISS", "embedding_model": "OpenAI"}
     config_b = {"retriever": "Chroma", "embedding_model": "SentenceTransformers"}

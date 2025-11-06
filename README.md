@@ -21,8 +21,8 @@ It provides a complete toolkit for **retriever selection**, **embedding model tu
 - 🧠 **Explainability Layer** — interprets RAG performance via Gemini or Claude APIs  
 - 🏆 **Leaderboard Tracking** — stores and ranks experiment runs via JSON or external DB  
 - 🔍 **Built-in RAG evaluation metrics** — faithfulness, recall, BLEU, ROUGE, latency  
-- ⚙️ **Retrievers** — FAISS, Chroma, ElasticSearch  
-- 🧩 **Embeddings** — OpenAI, HuggingFace  
+- ⚙️ **Retrievers** — FAISS, Chroma, scikit-learn  
+- 🧩 **Embeddings** — Hugging Face  
 - 💾 **Caching, experiment tracking, and reproducibility** out of the box  
 - 🧰 **Clean modular structure** for easy integration in research and production setups  
 
@@ -66,15 +66,69 @@ optimization:
 ### 3️⃣ Manual Pipeline Usage
 
 ```python
-from ragmint.core.pipeline import RAGPipeline
+from ragmint.tuner import RAGMint
 
-pipeline = RAGPipeline({
-    "embedding_model": "text-embedding-3-small",
-    "retriever": "faiss",
-})
+# Initialize RAGMint with available components
+rag = RAGMint(
+    docs_path="data/docs/",
+    retrievers=["faiss", "chroma", "sklearn"],
+    embeddings=["all-MiniLM-L6-v2", "sentence-transformers/all-MiniLM-L12-v2"],
+    rerankers=["mmr"]
+)
 
-result = pipeline.run("What is retrieval-augmented generation?")
-print(result)
+# Run optimization over 3 trials using the default validation set
+best, results = rag.optimize(
+    validation_set=None,
+    metric="faithfulness",
+    trials=3
+)
+
+print("Best configuration:", best)
+```
+---
+# 🧩 Embeddings and Retrievers
+
+**Ragmint** supports a flexible set of embeddings and retrievers, allowing you to adapt easily to various **RAG architectures**.
+
+---
+
+## 🔤 Available Embeddings (Hugging Face / OpenAI)
+
+You can select from the following models:
+
+* `sentence-transformers/all-MiniLM-L6-v2` — **lightweight**, general-purpose
+* `sentence-transformers/all-mpnet-base-v2` — **higher accuracy**, slower
+* `BAAI/bge-base-en-v1.5` — **multilingual**, dense embeddings
+* `intfloat/multilingual-e5-base` — ideal for **multilingual corpora**
+
+
+
+### Configuration Example
+
+Use the following format in your config file to specify the embedding model:
+
+```yaml
+embedding_model: sentence-transformers/all-MiniLM-L6-v2
+```
+---
+
+## 🔍 Available Retrievers
+
+**Ragmint** integrates multiple **retrieval backends** to suit different needs:
+
+| Retriever | Description |
+| :--- | :--- |
+| **FAISS** | Fast vector similarity search; efficient for dense embeddings |
+| **Chroma** | Persistent vector DB; works well for incremental updates |
+| **scikit-learn (NearestNeighbors)** | Lightweight, zero-dependency local retriever |
+
+
+### Configuration Example
+
+To specify the retriever in your configuration file, use the following format:
+
+```yaml
+retriever: faiss
 ```
 
 ---
@@ -146,8 +200,7 @@ lb.show_top(3)
 
 ## 🧠 Explainability with Gemini / Claude
 
-Compare two RAG configurations and receive natural language insights
-on **why** one performs better.
+Compare two RAG configurations and receive **natural language insights** on why one performs better.
 
 ```python
 from ragmint.explainer import explain_results
@@ -161,7 +214,7 @@ print(explanation)
 
 > Set your API keys in a `.env` file or via environment variables:
 > ```
-> export GOOGLE_API_KEY="your_gemini_key"
+> export GEMINI_API_KEY="your_gemini_key"
 > export ANTHROPIC_API_KEY="your_claude_key"
 > ```
 
@@ -212,16 +265,21 @@ Your `pyproject.toml` includes all required dependencies:
 name = "ragmint"
 version = "0.1.0"
 dependencies = [
-    "numpy",
-    "optuna",
-    "scikit-learn",
-    "faiss-cpu",
-    "chromadb",
-    "pytest",
-    "openai",
-    "tqdm",
-    "google-generativeai",
-    "google-genai",
+  "numpy<2.0.0",
+  "pandas>=2.0",
+  "scikit-learn>=1.3",
+  "openai>=1.0",
+  "tqdm",
+  "pyyaml",
+  "chromadb>=0.4",
+  "faiss-cpu; sys_platform != 'darwin'",
+  "optuna>=3.0",
+  "pytest",
+  "colorama",
+  "google-generativeai>=0.8.0",
+  "supabase>=2.4.0",
+  "python-dotenv",
+  "sentence-transformers"
 ]
 ```
 

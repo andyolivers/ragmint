@@ -1,14 +1,15 @@
 import numpy as np
 from ragmint.core.pipeline import RAGPipeline
 from ragmint.core.retriever import Retriever
+from ragmint.core.embeddings import Embeddings
 from ragmint.core.reranker import Reranker
 from ragmint.core.evaluation import Evaluator
 
 
 def test_pipeline_run():
     docs = ["doc1 text", "doc2 text"]
-    embeddings = [np.random.rand(4) for _ in range(2)]
-    retriever = Retriever(embeddings, docs)
+    embedder = Embeddings(backend="dummy")
+    retriever = Retriever(embedder=embedder, documents=docs)
     reranker = Reranker("mmr")
     evaluator = Evaluator()
     pipeline = RAGPipeline(retriever, reranker, evaluator)
