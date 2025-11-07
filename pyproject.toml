@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ragmint"
-version = "0.4.1"
+version = "0.4.2"
 description = "A modular framework for evaluating and optimizing RAG pipelines."
 readme = "README.md"
 license = { text = "Apache License 2.0" }
@@ -39,9 +39,6 @@ dependencies = [
   "openai>=1.0.0",
   "google-generativeai>=0.8.0",
   "anthropic>=0.25.0",
-
-  # Integration / storage
-  "supabase>=2.4.0",
 
   # Testing
   "pytest",

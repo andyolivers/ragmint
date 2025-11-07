@@ -1,5 +1,4 @@
 import os
-import json
 import logging
 from typing import Any, Dict, List, Tuple
 from time import perf_counter
@@ -11,6 +10,8 @@ from .core.reranker import Reranker
 from .core.evaluation import Evaluator
 from .optimization.search import GridSearch, RandomSearch, BayesianSearch
 from .utils.data_loader import load_validation_set
+from .leaderboard import Leaderboard
+from uuid import uuid4
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
@@ -151,7 +152,7 @@ class RAGMint:
         """Run optimization search over retrievers, embeddings, rerankers, and chunking."""
         validation = load_validation_set(validation_set or "default")
 
-        # ✅ Add chunking parameters to the search space
+        # search space
         search_space = {
             "retriever": self.retrievers,
             "embedding_model": self.embeddings,
@@ -185,5 +186,25 @@ class RAGMint:
 
         best = max(results, key=lambda r: r.get(metric, 0.0)) if results else {}
         logging.info(f"🏆 Best configuration: {best}")
+
+        # Save to leaderboard
+        run_id = f"run_{uuid4().hex[:8]}"
+        leaderboard = Leaderboard()
+
+        corpus_stats = {
+            "num_docs": len(self.documents),
+            "avg_len": sum(len(d.split()) for d in self.documents) / max(1, len(self.documents)),
+            "corpus_size": sum(len(d) for d in self.documents),
+        }
+
+        leaderboard.upload(
+            run_id=run_id,
+            best_config=best,
+            best_score=best.get(metric, 0.0),
+            all_results=results,
+            documents=os.listdir(self.docs_path),
+            model=best.get("embedding_model", "unknown"),
+            corpus_stats=corpus_stats,
+        )
 
         return best, results

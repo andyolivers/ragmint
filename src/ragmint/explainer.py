@@ -1,51 +1,76 @@
 """
 Interpretability Layer
 ----------------------
-Uses Gemini or Anthropic Claude to explain why one RAG configuration
-outperforms another. Falls back gracefully if no API key is provided.
+Uses Gemini or Anthropic Claude to explain why a particular RAG configuration
+performed best, considering both optimizer results and corpus characteristics.
 """
 
 import os
 import json
 from dotenv import load_dotenv
 
-# Load environment variables from .env file if available
+# Load .env if available
 load_dotenv()
 
-def explain_results(results_a: dict, results_b: dict, model: str = "gemini-2.5-flash-lite") -> str:
+def explain_results(best_result: dict, all_results: list, corpus_stats: dict = None,
+                    model: str = "gemini-2.5-flash-lite") -> str:
     """
-    Generate a natural-language explanation comparing two RAG experiment results.
-    Priority:
-      1. Anthropic Claude (if ANTHROPIC_API_KEY is set)
-      2. Google Gemini (if GOOGLE_API_KEY is set)
-      3. Fallback text message
-    """
-    prompt = f"""
-    You are an AI evaluation expert.
-    Compare these two RAG experiment results and explain why one performs better.
-    Metrics A: {json.dumps(results_a, indent=2)}
-    Metrics B: {json.dumps(results_b, indent=2)}
-    Provide a concise, human-friendly explanation and practical improvement tips.
+    Generate a detailed natural-language explanation for RAG optimization results.
+
+    Parameters:
+      - best_result: dict containing the best configuration and metrics.
+      - all_results: list of all trial results with metrics and configs.
+      - corpus_stats: optional dict with corpus info (size, avg_len, num_docs).
+      - model: LLM model name (Gemini or Claude).
+
+    Returns:
+      A natural-language explanation string.
     """
 
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-    google_key = os.getenv("GOOGLE_API_KEY")  # fixed var name
+    google_key = os.getenv("GOOGLE_API_KEY")
 
-    # 1️⃣ Try Anthropic Claude first
+    # Build dynamic context
+    corpus_info = json.dumps(corpus_stats or {}, indent=2)
+    best_json = json.dumps(best_result, indent=2)
+    all_json = json.dumps(list(all_results)[:10], indent=2) #cap for safety
+
+    prompt = f"""
+    You are an expert AI researcher specializing in Retrieval-Augmented Generation (RAG) optimization.
+
+    A RAG auto-tuner was run on a corpus with these characteristics:
+    {corpus_info}
+
+    The tuner evaluated multiple configurations and metrics. Below are:
+    - The BEST configuration:
+    {best_json}
+
+    - A sample of ALL evaluated configurations:
+    {all_json}
+
+    Please:
+    1. Explain WHY this best configuration likely performs better than others.
+    2. Highlight trade-offs between accuracy, latency, and resource usage.
+    3. Suggest potential improvements (different chunking, embedding, retriever, etc.).
+    4. Provide a concise summary of which setup you recommend for this corpus.
+    Keep it structured, under 300 words, and easy to read.
+    """
+
+    # --- 1️⃣ Anthropic Claude first ---
     if anthropic_key:
         try:
             from anthropic import Anthropic
             client = Anthropic(api_key=anthropic_key)
             response = client.messages.create(
                 model="claude-3-opus-20240229",
-                max_tokens=300,
+                max_tokens=500,
                 messages=[{"role": "user", "content": prompt}],
             )
             return response.content[0].text
         except Exception as e:
             return f"[Claude unavailable] {e}"
 
-    # 2️⃣ Fallback to Google Gemini
+    # --- 2️⃣ Gemini fallback ---
     elif google_key:
         try:
             import google.generativeai as genai
@@ -55,7 +80,7 @@ def explain_results(results_a: dict, results_b: dict, model: str = "gemini-2.5-f
         except Exception as e:
             return f"[Gemini unavailable] {e}"
 
-    # 3️⃣ Fallback if neither key is available
+    # --- 3️⃣ Fallback message ---
     else:
         return (
             "[No LLM available] Please set ANTHROPIC_API_KEY or GOOGLE_API_KEY "

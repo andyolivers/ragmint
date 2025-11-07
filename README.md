@@ -229,25 +229,35 @@ Track and visualize your best experiments across runs.
 ```python
 from ragmint.leaderboard import Leaderboard
 
-lb = Leaderboard("experiments/leaderboard.json")
-lb.add_entry({"trial": 1, "faithfulness": 0.87, "latency": 0.12})
-lb.show_top(3)
+# Initialize local leaderboard
+leaderboard = Leaderboard(storage_path="leaderboard.jsonl")
+
+# Retrieve top 5 runs
+print("\n🏅 Top 5 Experiments:")
+for result in leaderboard.top_results(limit=5):
+    print(f"{result['run_id']} | Score: {result['best_score']:.2f} | Model: {result['model']}")
 ```
 
 ---
 
 ## 🧠 Explainability with Gemini / Claude
 
-Compare two RAG configurations and receive **natural language insights** on why one performs better.
+Compare RAG configurations and receive **natural language insights** on why one performs better.
 
 ```python
+from ragmint.autotuner import AutoRAGTuner
 from ragmint.explainer import explain_results
 
-config_a = {"retriever": "FAISS", "embedding_model": "OpenAI"}
-config_b = {"retriever": "Chroma", "embedding_model": "SentenceTransformers"}
+tuner = AutoRAGTuner(docs_path="data/docs/")
+best, results = tuner.auto_tune(
+    validation_set='data/docs/validation_qa.json',
+    metric="faithfulness",
+    trials=5,
+    search_type='bayesian'
+)
 
-explanation = explain_results(config_a, config_b, model="gemini")
-print(explanation)
+analysis = explain_results(best, results, corpus_stats=tuner.corpus_stats)
+print(analysis)
 ```
 
 > Set your API keys in a `.env` file or via environment variables:
