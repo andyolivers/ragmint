@@ -122,7 +122,7 @@ print("Best configuration:", best)
 
 ---
 
-## 🔤 Available Embeddings (Hugging Face / OpenAI)
+## 🔤 Available Embeddings (Hugging Face)
 
 You can select from the following models:
 
