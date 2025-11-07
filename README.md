@@ -16,18 +16,18 @@ It provides a complete toolkit for **retriever selection**, **embedding model tu
 
 ## ✨ Features
 
-- ✅ **Automated hyperparameter optimization** (Grid, Random, Bayesian via Optuna)  
-- 🤖 **Auto-RAG Tuner** — dynamically recommends retriever–embedding pairs based on corpus size  
-- 🧠 **Explainability Layer** — interprets RAG performance via Gemini or Claude APIs  
-- 🏆 **Leaderboard Tracking** — stores and ranks experiment runs via JSON or external DB  
-- 🔍 **Built-in RAG evaluation metrics** — faithfulness, recall, BLEU, ROUGE, latency  
-- ⚙️ **Retrievers** — FAISS, Chroma, scikit-learn  
-- 🧩 **Embeddings** — Hugging Face  
-- 💾 **Caching, experiment tracking, and reproducibility** out of the box  
-- 🧰 **Clean modular structure** for easy integration in research and production setups  
-- 📦 **Chunking system** — automatic or configurable chunk_size and overlap for documents  
-- 🏗️ **Langchain Prebuilder** — prepares pipelines, applies chunking, embeddings, and vector store creation automatically  
-- ⚙️ **Config Adapter (LangchainConfigAdapter)** — normalizes configuration, fills defaults, validates retrievers
+- ✅ **Automated hyperparameter optimization** (Grid, Random, Bayesian via Optuna).
+- 🤖 **Auto-RAG Tuner** — dynamically recommends retriever–embedding pairs based on corpus size and document statistics, **suggests multiple chunk sizes with overlaps**, and can **test configurations to identify the best-performing RAG setup**.
+- 🧠 **Explainability Layer** — interprets RAG performance via Gemini or Claude APIs.
+- 🏆 **Leaderboard Tracking** — stores and ranks experiment runs via JSON or external DB.
+- 🔍 **Built-in RAG evaluation metrics** — faithfulness, recall, BLEU, ROUGE, latency.
+- 📦 **Chunking system** — automatic or configurable `chunk_size` and `overlap` for documents with multiple suggested pairs.  
+- ⚙️ **Retrievers** — FAISS, Chroma, scikit-learn.  
+- 🧩 **Embeddings** — Hugging Face.
+- 💾 **Caching, experiment tracking, and reproducibility** out of the box.
+- 🧰 **Clean modular structure** for easy integration in research and production setups.
+- 🏗️ **Langchain Prebuilder** — prepares pipelines, applies chunking, embeddings, and vector store creation automatically.
+- ⚙️ **Config Adapter (LangchainConfigAdapter)** — normalizes configuration, fills defaults, validates retrievers.
 
 ---
 
@@ -199,17 +199,25 @@ ragmint.optimize(validation_set="data/custom_qa.json")
 
 ## 🧠 Auto-RAG Tuner
 
-The **AutoRAGTuner** automatically recommends retriever–embedding combinations
-based on corpus size and average document length.
+The **AutoRAGTuner** automatically analyzes your corpus and recommends retriever–embedding combinations based on corpus statistics (size and average document length). It also **suggests multiple chunk sizes with overlaps** to improve retrieval performance.
+
+Beyond recommendations, it can **run full end-to-end testing** of the suggested configurations and **identify the best-performing RAG setup** for your dataset.
+
 
 ```python
 from ragmint.autotuner import AutoRAGTuner
 
-corpus_stats = {"size": 5000, "avg_len": 250}
-tuner = AutoRAGTuner(corpus_stats)
-recommendation = tuner.recommend()
-print(recommendation)
-# Example output: {"retriever": "Chroma", "embedding_model": "SentenceTransformers"}
+# Initialize with your documents
+tuner = AutoRAGTuner(docs_path="data/docs/")
+
+# Recommend configurations and suggest chunk sizes
+recommendation = tuner.recommend(num_chunk_pairs=5)
+print("Initial recommendation:", recommendation)
+
+# Run full auto-tuning on validation set
+best_config, results = tuner.auto_tune(validation_set="data/validation.json", trials=5)
+print("Best configuration after testing:", best_config)
+print("All trial results:", results)
 ```
 
 ---
@@ -353,13 +361,17 @@ dependencies = [
 
 ```mermaid
 flowchart TD
-    A[Query] --> B[Embedder]
-    B --> C[Retriever]
-    C --> D[Reranker]
-    D --> E[Generator]
-    E --> F[Evaluation]
-    F --> G[Optuna / AutoRAGTuner]
-    G -->|Best Params| B
+    A[Query] --> B[Chunking / Preprocessing]
+    B --> C[Embedder]
+    C --> D[Retriever]
+    D --> E[Reranker]
+    E --> F[Generator]
+    F --> G[Evaluation]
+    G --> H[AutoRAGTuner / Optuna]
+    H --> I[Suggested Configs & Chunk Sizes]
+    I --> J[Best Configuration]
+    J -->|Update Params| C
+
 ```
 
 ---
@@ -367,10 +379,14 @@ flowchart TD
 ## 📘 Example Output
 
 ```
-[INFO] Starting Bayesian optimization with Optuna
-[INFO] Trial 7 finished: faithfulness=0.83, latency=0.42s
-[INFO] Best parameters: {'lambda_param': 0.6, 'retriever': 'faiss'}
-[INFO] AutoRAGTuner: Suggested retriever=Chroma for medium corpus
+[INFO] Starting Auto-RAG Tuning
+[INFO] Suggested retriever=Chroma, embedding_model=sentence-transformers/all-MiniLM-L6-v2
+[INFO] Suggested chunk-size candidates: [(380, 80), (420, 100), (350, 70), (400, 90), (360, 75)]
+[INFO] Running full evaluation on validation set with 5 trials
+[INFO] Trial 1 finished: faithfulness=0.82, latency=0.40s
+[INFO] Trial 2 finished: faithfulness=0.85, latency=0.44s
+...
+[INFO] Best configuration after testing: {'retriever': 'Chroma', 'embedding_model': 'sentence-transformers/all-MiniLM-L6-v2', 'chunk_size': 400, 'overlap': 90, 'strategy': 'sentence'}
 ```
 
 ---

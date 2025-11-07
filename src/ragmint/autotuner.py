@@ -8,8 +8,10 @@ Integrates with RAGMint to perform full end-to-end tuning.
 import os
 import logging
 from statistics import mean
-from typing import Dict, Any, Tuple, List
+from typing import Dict, Any, Tuple, List, Optional
+import random
 
+from sentence_transformers import SentenceTransformer
 from .tuner import RAGMint
 from .core.evaluation import evaluate_config
 
@@ -17,6 +19,8 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
 
 class AutoRAGTuner:
+    DEFAULT_EMBEDDINGS = "sentence-transformers/all-MiniLM-L6-v2"
+
     def __init__(self, docs_path: str):
         """
         AutoRAGTuner automatically analyzes a corpus and runs an optimized RAG tuning pipeline.
@@ -54,33 +58,81 @@ class AutoRAGTuner:
         return stats
 
     # -----------------------------
+    # Chunk Size Suggestion
+    # -----------------------------
+    def suggest_chunk_sizes(
+            self,
+            model_name: Optional[str] = None,
+            num_pairs: Optional[int] = None
+    ) -> List[Tuple[int, int]]:
+        if num_pairs is None:
+            raise ValueError("⚠️ You must specify the number of pairs you want (num_pairs).")
+
+        if model_name is None:
+            model_name = self.DEFAULT_EMBEDDINGS
+            logging.warning(f"⚠️ No embedding model provided. Using default: {model_name}")
+
+        model = SentenceTransformer(model_name)
+        max_tokens = getattr(model, "max_seq_length", 256)
+
+        approx_words = max(1, int(max_tokens * 0.75))
+        avg_len = self.corpus_stats.get("avg_len", 400)
+
+        chunk_sizes = []
+        for _ in range(num_pairs):
+            max_chunk = max(50, min(approx_words, max(avg_len * 2, 50)))
+            low = max(10, int(max_chunk * 0.5))
+            high = max(low, max_chunk)
+            chunk_size = random.randint(low, high)
+            overlap = random.randint(10, min(300, chunk_size // 2))
+            chunk_sizes.append((chunk_size, overlap))
+
+        logging.info(f"📦 Suggested {num_pairs} (chunk_size, overlap) pairs: {chunk_sizes}")
+        return chunk_sizes
+
+    # -----------------------------
     # Recommendation Logic
     # -----------------------------
-    def recommend(self) -> Dict[str, Any]:
-        """Recommend retriever, embedding, and chunking based on corpus stats."""
+    def recommend(
+        self,
+        embedding_model: Optional[str] = None,
+        num_chunk_pairs: Optional[int] = 5
+    ) -> Dict[str, Any]:
+        """
+        Recommend retriever, embedding, chunking, and strategy based on corpus stats.
+
+        Args:
+            embedding_model (str, optional): User-provided embedding model.
+            num_chunk_pairs (int, optional): Number of (chunk_size, overlap) pairs to generate.
+
+        Returns:
+            Dict[str, Any]: Recommended RAG configuration
+        """
         size = self.corpus_stats.get("size", 0)
         avg_len = self.corpus_stats.get("avg_len", 0)
-        num_docs = self.corpus_stats.get("num_docs", 0)
 
-        # Heuristic-based tuning
-        # Determine chunking heuristics first
-        if avg_len < 200:
-            chunk_size, overlap = 300, 50
-        elif avg_len < 500:
-            chunk_size, overlap = 500, 100
-        else:
-            chunk_size, overlap = 800, 150
-
-        # Determine retriever–embedding based on corpus size
+        # Determine retriever
         if size <= 2000:
             retriever = "BM25"
-            embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
+            if embedding_model is None:
+                embedding_model = self.DEFAULT_EMBEDDINGS
         elif size <= 10000:
             retriever = "Chroma"
-            embedding_model = "sentence-transformers/paraphrase-MiniLM-L6-v2"
+            if embedding_model is None:
+                embedding_model = "sentence-transformers/paraphrase-MiniLM-L6-v2"
         else:
             retriever = "FAISS"
-            embedding_model = "sentence-transformers/all-mpnet-base-v2"
+            if embedding_model is None:
+                embedding_model = "sentence-transformers/all-mpnet-base-v2"
+
+        if embedding_model is None:
+            embedding_model = self.DEFAULT_EMBEDDINGS
+            logging.warning(f"⚠️ Using default embedding model: {embedding_model}")
+
+        # Suggest chunk sizes
+        chunk_candidates = self.suggest_chunk_sizes(embedding_model, num_pairs=num_chunk_pairs)
+        # Pick the first pair as default recommendation
+        chunk_size, overlap = chunk_candidates[0]
 
         strategy = "fixed" if avg_len < 400 else "sentence"
 
@@ -90,6 +142,7 @@ class AutoRAGTuner:
             "chunk_size": chunk_size,
             "overlap": overlap,
             "strategy": strategy,
+            "chunk_candidates": chunk_candidates,
         }
 
         logging.info(f"🔮 AutoRAG Recommendation: {recommendation}")
@@ -104,16 +157,24 @@ class AutoRAGTuner:
         metric: str = "faithfulness",
         trials: int = 5,
         search_type: str = "random",
+        embedding_model: Optional[str] = None,
+        num_chunk_pairs: Optional[int] = 5
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Run a full automatic optimization using RAGMint.
 
-        Automatically:
-        - Recommends initial config (retriever, embedding, chunking)
-        - Launches RAGMint optimization trials
-        - Returns best configuration and results
+        Args:
+            validation_set (str): Path to validation set.
+            metric (str): Metric to optimize.
+            trials (int): Number of optimization trials.
+            search_type (str): Search strategy.
+            embedding_model (str, optional): User-provided embedding model.
+            num_chunk_pairs (int, optional): Number of chunk pairs to try.
+
+        Returns:
+            Tuple[Dict[str, Any], List[Dict[str, Any]]]: Best configuration and all trial results.
         """
-        rec = self.recommend()
+        rec = self.recommend(embedding_model=embedding_model, num_chunk_pairs=num_chunk_pairs)
 
         logging.info("🚀 Launching full AutoRAG optimization with RAGMint")
 
