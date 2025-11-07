@@ -63,7 +63,8 @@ class AutoRAGTuner:
     def suggest_chunk_sizes(
             self,
             model_name: Optional[str] = None,
-            num_pairs: Optional[int] = None
+            num_pairs: Optional[int] = None,
+            step: int = 10
     ) -> List[Tuple[int, int]]:
         if num_pairs is None:
             raise ValueError("⚠️ You must specify the number of pairs you want (num_pairs).")
@@ -74,21 +75,27 @@ class AutoRAGTuner:
 
         model = SentenceTransformer(model_name)
         max_tokens = getattr(model, "max_seq_length", 256)
-
         approx_words = max(1, int(max_tokens * 0.75))
         avg_len = self.corpus_stats.get("avg_len", 400)
 
-        chunk_sizes = []
-        for _ in range(num_pairs):
-            max_chunk = max(50, min(approx_words, max(avg_len * 2, 50)))
-            low = max(10, int(max_chunk * 0.5))
-            high = max(low, max_chunk)
-            chunk_size = random.randint(low, high)
-            overlap = random.randint(10, min(300, chunk_size // 2))
-            chunk_sizes.append((chunk_size, overlap))
+        max_chunk = max(50, min(approx_words, max(avg_len * 2, 50)))
 
-        logging.info(f"📦 Suggested {num_pairs} (chunk_size, overlap) pairs: {chunk_sizes}")
-        return chunk_sizes
+        # Safe chunk and overlap ranges
+        chunk_sizes = list(range(50, max_chunk + 1, step))
+        overlaps = list(range(10, min(300, max_chunk // 2) + 1, step))
+        if not overlaps:
+            overlaps = [max(1, max_chunk // 4)]
+
+        candidates = [(c, o) for c in chunk_sizes for o in overlaps if o < c]
+
+        # Randomly sample requested number of pairs
+        if num_pairs >= len(candidates):
+            sampled = candidates
+        else:
+            sampled = random.sample(candidates, num_pairs)
+
+        logging.info(f"📦 Suggested {num_pairs} (chunk_size, overlap) pairs: {sampled}")
+        return sampled
 
     # -----------------------------
     # Recommendation Logic
@@ -130,7 +137,16 @@ class AutoRAGTuner:
             logging.warning(f"⚠️ Using default embedding model: {embedding_model}")
 
         # Suggest chunk sizes
-        chunk_candidates = self.suggest_chunk_sizes(embedding_model, num_pairs=num_chunk_pairs)
+        # Inside auto_tune, replace fixed chunk_sizes/overlaps with all candidates:
+        chunk_candidates = self.suggest_chunk_sizes(
+            model_name=embedding_model,
+            num_pairs=num_chunk_pairs
+        )
+
+        # Safety check
+        if not chunk_candidates:
+            raise RuntimeError("No chunk candidates generated.")
+
         # Pick the first pair as default recommendation
         chunk_size, overlap = chunk_candidates[0]
 
@@ -176,6 +192,8 @@ class AutoRAGTuner:
         """
         rec = self.recommend(embedding_model=embedding_model, num_chunk_pairs=num_chunk_pairs)
 
+        chunk_candidates = rec["chunk_candidates"]
+
         logging.info("🚀 Launching full AutoRAG optimization with RAGMint")
 
         tuner = RAGMint(
@@ -183,8 +201,8 @@ class AutoRAGTuner:
             retrievers=[rec["retriever"]],
             embeddings=[rec["embedding_model"]],
             rerankers=["mmr"],
-            chunk_sizes=[rec["chunk_size"]],
-            overlaps=[rec["overlap"]],
+            chunk_sizes=[c[0] for c in chunk_candidates],
+            overlaps=[c[1] for c in chunk_candidates],
             strategies=[rec["strategy"]],
         )
 
