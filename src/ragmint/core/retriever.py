@@ -18,25 +18,29 @@ try:
 except ImportError:
     BallTree = None
 
+try:
+    from rank_bm25 import BM25Okapi
+except ImportError:
+    BM25Okapi = None
+
 
 class Retriever:
     """
-    Multi-backend retriever supporting NumPy, FAISS, Chroma, and Scikit-learn BallTree.
-
-    Backends:
-        - "numpy"  : basic cosine similarity using NumPy (default)
-        - "faiss"  : fast dense vector search (in-memory)
-        - "chroma" : persistent local vector database
-        - "sklearn": BallTree for cosine or Euclidean distance
+    Multi-backend retriever supporting:
+        - "numpy"  : basic cosine similarity (dense)
+        - "faiss"  : high-performance dense retriever
+        - "chroma" : persistent vector DB
+        - "sklearn": BallTree (cosine or Euclidean)
+        - "bm25"   : lexical retriever using Rank-BM25
 
     Example:
-        retriever = Retriever(embedder, documents=["A", "B", "C"], backend="faiss")
-        retriever.retrieve("example query", top_k=3)
+        retriever = Retriever(embedder, documents=["A", "B", "C"], backend="bm25")
+        results = retriever.retrieve("example query", top_k=3)
     """
 
     def __init__(
         self,
-        embedder: Embeddings,
+        embedder: Optional[Embeddings] = None,
         documents: Optional[List[str]] = None,
         embeddings: Optional[np.ndarray] = None,
         backend: str = "numpy",
@@ -47,18 +51,20 @@ class Retriever:
         self.embeddings = None
         self.index = None
         self.client = None
+        self.bm25 = None
 
-        # Initialize embeddings
-        if embeddings is not None:
-            self.embeddings = np.array(embeddings)
-        elif self.documents:
-            self.embeddings = self.embedder.encode(self.documents)
-        else:
-            self.embeddings = np.zeros((0, self.embedder.dim))
+        # Initialize embeddings for dense backends
+        if self.backend not in ["bm25"]:
+            if embeddings is not None:
+                self.embeddings = np.array(embeddings)
+            elif self.documents and self.embedder:
+                self.embeddings = self.embedder.encode(self.documents)
+            else:
+                self.embeddings = np.zeros((0, getattr(self.embedder, "dim", 768)))
 
-        # Normalize for cosine
-        if self.embeddings.size > 0:
-            self.embeddings = self._normalize(self.embeddings)
+            # Normalize for cosine
+            if self.embeddings.size > 0:
+                self.embeddings = self._normalize(self.embeddings)
 
         # Initialize backend
         self._init_backend()
@@ -90,6 +96,12 @@ class Retriever:
                 raise ImportError("scikit-learn not installed. Run `pip install scikit-learn`.")
             self.index = BallTree(self.embeddings)
 
+        elif self.backend == "bm25":
+            if BM25Okapi is None:
+                raise ImportError("rank-bm25 not installed. Run `pip install rank-bm25`.")
+            tokenized_corpus = [doc.lower().split() for doc in self.documents]
+            self.bm25 = BM25Okapi(tokenized_corpus)
+
         elif self.backend != "numpy":
             raise ValueError(f"Unsupported retriever backend: {self.backend}")
 
@@ -97,7 +109,21 @@ class Retriever:
     # Retrieval
     # ------------------------
     def retrieve(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        if len(self.documents) == 0 or self.embeddings.size == 0:
+        if len(self.documents) == 0:
+            return [{"text": "", "score": 0.0}]
+
+        # BM25 retrieval (lexical)
+        if self.backend == "bm25":
+            tokenized_query = query.lower().split()
+            scores = self.bm25.get_scores(tokenized_query)
+            top_indices = np.argsort(scores)[::-1][:top_k]
+            return [
+                {"text": self.documents[i], "score": float(scores[i])}
+                for i in top_indices
+            ]
+
+        # Dense retrieval (others)
+        if self.embeddings is None or self.embeddings.size == 0:
             return [{"text": "", "score": 0.0}]
 
         query_vec = self.embedder.encode([query])[0]
@@ -106,18 +132,12 @@ class Retriever:
         if self.backend == "numpy":
             scores = np.dot(self.embeddings, query_vec)
             top_indices = np.argsort(scores)[::-1][:top_k]
-            return [
-                {"text": self.documents[i], "score": float(scores[i])}
-                for i in top_indices
-            ]
+            return [{"text": self.documents[i], "score": float(scores[i])} for i in top_indices]
 
         elif self.backend == "faiss":
             query_vec = np.expand_dims(query_vec.astype("float32"), axis=0)
             scores, indices = self.index.search(query_vec, top_k)
-            return [
-                {"text": self.documents[int(i)], "score": float(scores[0][j])}
-                for j, i in enumerate(indices[0])
-            ]
+            return [{"text": self.documents[int(i)], "score": float(scores[0][j])} for j, i in enumerate(indices[0])]
 
         elif self.backend == "chroma":
             results = self.collection.query(query_texts=[query], n_results=top_k)
@@ -128,10 +148,7 @@ class Retriever:
         elif self.backend == "sklearn":
             distances, indices = self.index.query([query_vec], k=top_k)
             scores = 1 - distances[0]
-            return [
-                {"text": self.documents[int(i)], "score": float(scores[j])}
-                for j, i in enumerate(indices[0])
-            ]
+            return [{"text": self.documents[int(i)], "score": float(scores[j])} for j, i in enumerate(indices[0])]
 
         else:
             raise ValueError(f"Unknown backend: {self.backend}")

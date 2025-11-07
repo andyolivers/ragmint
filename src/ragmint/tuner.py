@@ -18,7 +18,8 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 class RAGMint:
     """
     Main RAG pipeline optimizer and evaluator.
-    Runs combinations of retrievers, embeddings, and rerankers to find the best setup.
+    Runs combinations of retrievers, embeddings, rerankers, and chunking parameters
+    to find the best performing RAG configuration.
     """
 
     def __init__(
@@ -27,11 +28,17 @@ class RAGMint:
         retrievers: List[str],
         embeddings: List[str],
         rerankers: List[str],
+        chunk_sizes: List[int] = [400, 600],
+        overlaps: List[int] = [50, 100],
+        strategies: List[str] = ["fixed"],
     ):
         self.docs_path = docs_path
         self.retrievers = retrievers
         self.embeddings = embeddings
         self.rerankers = rerankers
+        self.chunk_sizes = chunk_sizes
+        self.overlaps = overlaps
+        self.strategies = strategies
 
         self.documents: List[str] = self._load_docs()
         self.embeddings_cache: Dict[str, Any] = {}
@@ -75,6 +82,11 @@ class RAGMint:
         model_name = config["embedding_model"]
         reranker_name = config["reranker"]
 
+        # Chunking params (use defaults if missing)
+        chunk_size = int(config.get("chunk_size", 500))
+        overlap = int(config.get("overlap", 100))
+        strategy = config.get("strategy", "fixed")
+
         # Load embeddings (cached)
         embeddings = self._embed_docs(model_name)
         embedder = Embeddings(backend="huggingface", model_name=model_name)
@@ -91,7 +103,15 @@ class RAGMint:
         reranker = Reranker(reranker_name)
         evaluator = Evaluator()
 
-        return RAGPipeline(retriever, reranker, evaluator)
+        # ✅ Pass chunking parameters into RAGPipeline
+        return RAGPipeline(
+            retriever,
+            reranker,
+            evaluator,
+            chunk_size=chunk_size,
+            overlap=overlap,
+            chunking_strategy=strategy,
+        )
 
     # -------------------------
     # Evaluate Configuration
@@ -128,13 +148,17 @@ class RAGMint:
         search_type: str = "random",
         trials: int = 10,
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        """Run optimization search over retrievers/embeddings/rerankers."""
+        """Run optimization search over retrievers, embeddings, rerankers, and chunking."""
         validation = load_validation_set(validation_set or "default")
 
+        # ✅ Add chunking parameters to the search space
         search_space = {
             "retriever": self.retrievers,
             "embedding_model": self.embeddings,
             "reranker": self.rerankers,
+            "chunk_size": self.chunk_sizes,
+            "overlap": self.overlaps,
+            "strategy": self.strategies,
         }
 
         logging.info(f"🚀 Starting {search_type} optimization with {trials} trials")

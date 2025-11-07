@@ -10,7 +10,7 @@
 
 **Ragmint** (Retrieval-Augmented Generation Model Inspection & Tuning) is a modular, developer-friendly Python library for **evaluating, optimizing, and tuning RAG (Retrieval-Augmented Generation) pipelines**.
 
-It provides a complete toolkit for **retriever selection**, **embedding model tuning**, and **automated RAG evaluation** with support for **Optuna-based Bayesian optimization**, **Auto-RAG tuning**, and **explainability** through Gemini or Claude.
+It provides a complete toolkit for **retriever selection**, **embedding model tuning**, **automated RAG evaluation**, and **config-driven prebuilding** of pipelines with support for **Optuna-based Bayesian optimization**, **Auto-RAG tuning**, **chunking**, and **explainability** through Gemini or Claude.
 
 ---
 
@@ -25,6 +25,9 @@ It provides a complete toolkit for **retriever selection**, **embedding model tu
 - 🧩 **Embeddings** — Hugging Face  
 - 💾 **Caching, experiment tracking, and reproducibility** out of the box  
 - 🧰 **Clean modular structure** for easy integration in research and production setups  
+- 📦 **Chunking system** — automatic or configurable chunk_size and overlap for documents  
+- 🏗️ **Langchain Prebuilder** — prepares pipelines, applies chunking, embeddings, and vector store creation automatically  
+- ⚙️ **Config Adapter (LangchainConfigAdapter)** — normalizes configuration, fills defaults, validates retrievers
 
 ---
 
@@ -53,6 +56,8 @@ Example `configs/default.yaml`:
 ```yaml
 retriever: faiss
 embedding_model: text-embedding-3-small
+chunk_size: 500
+overlap: 100
 reranker:
   mode: mmr
   lambda_param: 0.5
@@ -66,29 +71,54 @@ optimization:
 ### 3️⃣ Manual Pipeline Usage
 
 ```python
+from ragmint.prebuilder import PreBuilder
 from ragmint.tuner import RAGMint
 
-# Initialize RAGMint with available components
-rag = RAGMint(
+# Prebuild pipeline (chunking, embeddings, vector store)
+prebuilder = PreBuilder(
     docs_path="data/docs/",
-    retrievers=["faiss", "chroma", "sklearn"],
-    embeddings=["all-MiniLM-L6-v2", "sentence-transformers/all-MiniLM-L12-v2"],
-    rerankers=["mmr"]
+    config_path="configs/default.yaml"
 )
+pipeline = prebuilder.build_pipeline()
 
-# Run optimization over 3 trials using the default validation set
-best, results = rag.optimize(
-    validation_set=None,
-    metric="faithfulness",
-    trials=3
-)
+# Initialize RAGMint with prebuilt components
+rag = RAGMint(pipeline=pipeline)
 
+# Run optimization
+best, results = rag.optimize(validation_set=None, metric="faithfulness", trials=3)
 print("Best configuration:", best)
+
 ```
 ---
 # 🧩 Embeddings and Retrievers
 
 **Ragmint** supports a flexible set of embeddings and retrievers, allowing you to adapt easily to various **RAG architectures**.
+
+---
+## 🧩 Chunking System
+
+* **Automatically splits documents** into chunks with `chunk_size` and `overlap` parameters.
+* **Supports default values** if not provided in configuration.
+* **Optimized** for downstream **retrieval and embeddings**.
+* **Enables adaptive chunking strategies** in future releases.
+
+---
+## 🧩 Langchain Config Adapter
+
+* **Ensures consistent configuration** across pipeline components.
+* **Normalizes retriever and embedding names** (e.g., `faiss`, `sentence-transformers/...`).
+* **Adds default chunk parameters** when missing.
+* **Validates retriever backends** and **raises clear errors** for unsupported options.
+
+---
+## 🧩 Langchain Prebuilder
+
+**Automates pipeline preparation:**
+1. Reads documents
+2. Applies chunking
+3. Creates embeddings
+4. Initializes retriever / vector store
+5. Returns ready-to-use pipeline** for RAGMint or custom usage.
 
 ---
 
@@ -228,8 +258,12 @@ ragmint/
 │   ├── pipeline.py
 │   ├── retriever.py
 │   ├── reranker.py
-│   ├── embedding.py
+│   ├── embeddings.py
+│   ├── chunking.py
 │   └── evaluation.py
+├── integration/
+│   ├── config_adapter.py
+│   └── langchain_prebuilder.py
 ├── autotuner.py
 ├── explainer.py
 ├── leaderboard.py
@@ -265,21 +299,42 @@ Your `pyproject.toml` includes all required dependencies:
 name = "ragmint"
 version = "0.1.0"
 dependencies = [
+  # Core ML + Embeddings
   "numpy<2.0.0",
   "pandas>=2.0",
   "scikit-learn>=1.3",
-  "openai>=1.0",
-  "tqdm",
-  "pyyaml",
+  "sentence-transformers>=2.2.2",
+
+  # Retrieval backends
   "chromadb>=0.4",
-  "faiss-cpu; sys_platform != 'darwin'",
+  "faiss-cpu; sys_platform != 'darwin'",       # For Linux/Windows
+  "faiss-cpu==1.7.4; sys_platform == 'darwin'", # Optional fix for macOS MPS
+  "rank-bm25>=0.2.2",                          # For BM25 retriever
+
+  # Optimization & evaluation
   "optuna>=3.0",
-  "pytest",
+  "tqdm",
   "colorama",
-  "google-generativeai>=0.8.0",
-  "supabase>=2.4.0",
+
+  # RAG evaluation and data utils
+  "pyyaml",
   "python-dotenv",
-  "sentence-transformers"
+
+  # Explainability and LLM APIs
+  "openai>=1.0.0",
+  "google-generativeai>=0.8.0",
+  "anthropic>=0.25.0",
+
+  # Integration / storage
+  "supabase>=2.4.0",
+
+  # Testing
+  "pytest",
+
+  # LangChain integration layer
+  "langchain>=0.2.5",
+  "langchain-community>=0.2.5",
+  "langchain-text-splitters>=0.2.1"
 ]
 ```
 

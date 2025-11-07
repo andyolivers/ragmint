@@ -1,42 +1,51 @@
+import os
+import json
 import pytest
 from ragmint.autotuner import AutoRAGTuner
 
 
-def test_autorag_recommend_small():
-    """Small corpus should trigger BM25 + OpenAI."""
-    tuner = AutoRAGTuner({"size": 500, "avg_len": 150})
+def setup_docs(tmp_path):
+    """Create a temporary corpus with multiple text files for testing."""
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "short_doc.txt").write_text("AI is changing the world.")
+    (corpus / "long_doc.txt").write_text("Machine learning enables RAG pipelines to optimize retrievals. " * 50)
+    return str(corpus)
+
+
+def test_analyze_corpus(tmp_path):
+    """Ensure AutoRAGTuner analyzes corpus correctly."""
+    docs_path = setup_docs(tmp_path)
+    tuner = AutoRAGTuner(docs_path)
+    stats = tuner.corpus_stats
+
+    assert stats["num_docs"] == 2, "Should detect all documents"
+    assert stats["size"] > 0, "Corpus size should be positive"
+    assert stats["avg_len"] > 0, "Average document length should be computed"
+
+
+@pytest.mark.parametrize("size,expected_retriever", [
+    (10_000, "Chroma"),
+    (500_000, "FAISS"),
+    (1_000, "BM25"),
+])
+def test_recommendation_logic(tmp_path, monkeypatch, size, expected_retriever):
+    """Validate retriever recommendation based on corpus size."""
+    docs_path = setup_docs(tmp_path)
+    tuner = AutoRAGTuner(docs_path)
+
+    # Mock corpus stats manually
+    tuner.corpus_stats = {"size": size, "avg_len": 300, "num_docs": 10}
+
     rec = tuner.recommend()
-    assert rec["retriever"] == "BM25"
-    assert rec["embedding_model"] == "OpenAI"
+    assert "retriever" in rec and "embedding_model" in rec
+    assert rec["retriever"] == expected_retriever, f"Expected {expected_retriever}"
+    assert rec["chunk_size"] > 0 and rec["overlap"] >= 0
 
 
-def test_autorag_recommend_medium():
-    """Medium corpus should trigger Chroma + SentenceTransformers."""
-    tuner = AutoRAGTuner({"size": 5000, "avg_len": 200})
-    rec = tuner.recommend()
-    assert rec["retriever"] == "Chroma"
-    assert rec["embedding_model"] == "SentenceTransformers"
-
-
-def test_autorag_recommend_large():
-    """Large corpus should trigger FAISS + InstructorXL."""
-    tuner = AutoRAGTuner({"size": 50000, "avg_len": 300})
-    rec = tuner.recommend()
-    assert rec["retriever"] == "FAISS"
-    assert rec["embedding_model"] == "InstructorXL"
-
-
-def test_autorag_auto_tune(monkeypatch):
-    """Test auto_tune with a mock validation dataset."""
-    tuner = AutoRAGTuner({"size": 12000, "avg_len": 250})
-
-    # Monkeypatch evaluate_config inside autotuner
-    import ragmint.autotuner as autotuner
-    def mock_eval(config, data):
-        return {"faithfulness": 0.9, "latency": 0.01}
-    monkeypatch.setattr(autotuner, "evaluate_config", mock_eval)
-
-    result = tuner.auto_tune([{"question": "What is AI?", "answer": "Artificial Intelligence"}])
-    assert "recommended" in result
-    assert "results" in result
-    assert isinstance(result["results"], dict)
+def test_invalid_corpus_path(tmp_path):
+    """Should handle missing directories gracefully."""
+    missing_path = tmp_path / "nonexistent"
+    tuner = AutoRAGTuner(str(missing_path))
+    assert tuner.corpus_stats["size"] == 0
+    assert tuner.corpus_stats["num_docs"] == 0
