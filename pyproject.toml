@@ -46,11 +46,11 @@ dependencies = [
   # LangChain integration layer
   "langchain>=0.2.5",
   "langchain-community>=0.2.5",
-  "langchain-text-splitters>=0.2.1"
+  "langchain-text-splitters>=0.2.1",
 
   # UI
   "gradio>=4.38.0",
-  "matplotlib>=3.8.0",
+  "matplotlib>=3.8.0"
 ]
 
 [project.optional-dependencies]
