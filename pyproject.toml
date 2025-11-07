@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ragmint"
-version = "0.3.1"
+version = "0.3.2"
 description = "A modular framework for evaluating and optimizing RAG pipelines."
 readme = "README.md"
 license = { text = "Apache License 2.0" }
