@@ -13,7 +13,7 @@ import random
 
 from sentence_transformers import SentenceTransformer
 from .tuner import RAGMint
-from .core.evaluation import evaluate_config
+
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 

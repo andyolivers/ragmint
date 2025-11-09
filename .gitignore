@@ -63,6 +63,8 @@ data/tmp/
 outputs/
 models/
 notebooks/
+data/docs/
+data/
 
 # ---- OS ----
 Thumbs.db
