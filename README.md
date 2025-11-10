@@ -23,6 +23,7 @@ It provides a complete toolkit for **retriever selection**, **embedding model tu
 
 - ✅ **Automated hyperparameter optimization** (Grid, Random, Bayesian via Optuna).
 - 🤖 **Auto-RAG Tuner** — dynamically recommends retriever–embedding pairs based on corpus size and document statistics, **suggests multiple chunk sizes with overlaps**, and can **test configurations to identify the best-performing RAG setup**.
+- 🧮 **Validation QA Generator** — automatically creates QA datasets from a corpus for evaluating and tuning RAG pipelines when no labeled data is available.
 - 🧠 **Explainability Layer** — interprets RAG performance via Gemini or Claude APIs.
 - 🏆 **Leaderboard Tracking** — stores and ranks experiment runs via JSON or external DB.
 - 🔍 **Built-in RAG evaluation metrics** — faithfulness, recall, BLEU, ROUGE, latency.
@@ -113,6 +114,54 @@ print("Best configuration:", best)
 * **Supports default values** if not provided in configuration.
 * **Optimized** for downstream **retrieval and embeddings**.
 * **Enables adaptive chunking strategies** in future releases.
+---
+## 🧮 Validation QA Generator
+
+The **QA Generator** module automatically creates **question–answer (QA) validation datasets** from any corpus of `.txt` documents.  
+This dataset can be used to **evaluate and tune RAG pipelines** inside Ragmint when no labeled data is available.
+
+### ✨ Key Capabilities
+
+- 🔁 **Batch processing** — splits large corpora into batches to prevent token overflows and API timeouts.
+
+- 🧠 **Topic-aware question estimation** — dynamically determines how many questions to generate per document based on:
+  - Document length (logarithmic scaling)
+  - Topic diversity (via `SentenceTransformer` + `KMeans` clustering)
+
+- 🤖 **LLM-powered QA synthesis** — generates factual QA pairs using **Gemini** or **Claude** models.
+
+- 💾 **Automatic JSON export** — saves the generated dataset to `experiments/validation_qa.json` (configurable).
+
+### ⚙️ Usage
+
+You can run the generator directly from the command line:
+
+```bash
+python -m ragmint.qa_generator --density 0.005
+```
+
+### 💡 Example: Using in Python
+
+```python
+from ragmint.qa_generator import QADataGenerator
+
+generator = QADataGenerator(
+    docs_path="data/docs",
+    output_path="experiments/validation_qa.json",
+    llm_model="gemini-2.5-flash-lite",
+    batch_size=5,
+    min_q=3,
+    max_q=25
+)
+
+generator.generate()
+```
+✅ The generator supports both Gemini and Claude models.  
+Set your API key in a `.env` file or via environment variables:
+```
+export GOOGLE_API_KEY="your_gemini_key"
+export ANTHROPIC_API_KEY="your_claude_key"
+```
 
 ---
 ## 🧩 Langchain Config Adapter
