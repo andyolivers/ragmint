@@ -1,7 +1,7 @@
 # Ragmint
 
 <p align="center">
-  <img src="src/ragmint/assets/img/ragmint_logo.png" width="auto" height="70px" alt="Ragmint Banner">
+  <img src="src/ragmint/assets/img/ragmint-banner.png" width="auto" height="70px" alt="Ragmint Banner">
 </p>
 
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
