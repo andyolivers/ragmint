@@ -143,18 +143,17 @@ python -m ragmint.qa_generator --density 0.005
 ### 💡 Example: Using in Python
 
 ```python
-from ragmint.qa_generator import QADataGenerator
+from ragmint.qa_generator import generate_validation_qa
 
-generator = QADataGenerator(
-    docs_path="data/docs",
-    output_path="experiments/validation_qa.json",
-    llm_model="gemini-2.5-flash-lite",
-    batch_size=5,
-    min_q=3,
-    max_q=25
+generate_validation_qa(
+    docs_path="data/docs",                          # Folder with .txt documents
+    output_path="experiments/validation_qa.json",   # Output JSON file
+    llm_model="gemini-2.5-flash-lite",              # or "claude-3-opus-20240229"
+    batch_size=5,                                   # Number of docs per LLM call
+    sleep_between_batches=2,                        # Wait time between calls (seconds)
+    min_q=3,                                        # Minimum questions per doc
+    max_q=25                                        # Maximum questions per doc
 )
-
-generator.generate()
 ```
 ✅ The generator supports both Gemini and Claude models.  
 Set your API key in a `.env` file or via environment variables:

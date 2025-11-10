@@ -1,90 +1,66 @@
+import os
 import json
-import pytest
+import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-from ragmint.qa_generator import QADataGenerator
+import pytest
 
-# ---------------- Fixtures ----------------
+from ragmint.qa_generator import generate_validation_qa
+
+
+class DummyLLM:
+    """Mock LLM that returns predictable JSON output."""
+    def generate_content(self, prompt):
+        class DummyResponse:
+            text = '[{"query": "What is X?", "expected_answer": "Y"}]'
+        return DummyResponse()
+
 
 @pytest.fixture
-def tmp_docs(tmp_path):
-    """Create temporary docs directory with small text files."""
+def dummy_docs(tmp_path):
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
-    (docs_dir / "doc1.txt").write_text("Cisco routers provide secure networking.")
-    (docs_dir / "doc2.txt").write_text("AI models can generate question-answer datasets.")
+    for i in range(3):
+        (docs_dir / f"doc_{i}.txt").write_text(f"This is test document number {i}. It contains some content.")
     return docs_dir
 
+
 @pytest.fixture
-def generator(tmp_docs, tmp_path):
-    """Initialize QADataGenerator with fake keys and temp paths."""
-    gen = QADataGenerator(
-        docs_path=str(tmp_docs),
-        output_path=str(tmp_path / "validation_qa.json"),
+def output_path(tmp_path):
+    return tmp_path / "validation_qa.json"
+
+
+def test_generate_validation_qa(monkeypatch, dummy_docs, output_path):
+    """Ensure QA generator runs end-to-end with mocked LLM."""
+    # --- Mock LLM setup ---
+    from sentence_transformers import SentenceTransformer
+    monkeypatch.setattr("ragmint.qa_generator.setup_llm", lambda *_: (DummyLLM(), "gemini"))
+    monkeypatch.setattr(SentenceTransformer, "encode", lambda self, x, normalize_embeddings=True: [[0.1] * 3] * len(x))
+
+    # --- Run function ---
+    generate_validation_qa(
+        docs_path=dummy_docs,
+        output_path=output_path,
+        llm_model="gemini-2.5-flash-lite",
         batch_size=2,
+        sleep_between_batches=0,
     )
-    # Inject fake LLM to bypass API
-    gen.backend = "gemini"
-    gen.llm = MagicMock()
-    return gen
 
-# ---------------- Tests ----------------
+    # --- Validate output ---
+    assert output_path.exists(), "Output JSON file should be created"
+    data = json.loads(output_path.read_text())
+    assert isinstance(data, list), "Output must be a list"
+    assert all("query" in d and "expected_answer" in d for d in data), "Each entry must have query and answer"
+    assert len(data) > 0, "At least one QA pair should be generated"
 
-def test_read_corpus(generator):
-    docs = generator.read_corpus()
-    assert len(docs) == 2
-    assert all("filename" in d and "text" in d for d in docs)
 
-def test_determine_question_count_varies(generator):
-    short = "short text"
-    long = "word " * 2500
-    q_short = generator.determine_question_count(short)
-    q_long = generator.determine_question_count(long)
-    assert generator.min_q <= q_short <= generator.max_q
-    assert generator.min_q <= q_long <= generator.max_q
-    assert q_long >= q_short  # longer text → more questions
+def test_handles_empty_folder(monkeypatch, tmp_path):
+    """Ensure no crash when docs folder is empty."""
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+    output_file = tmp_path / "qa.json"
 
-@patch("ragmint.qa_generator.SentenceTransformer")
-@patch("ragmint.qa_generator.KMeans")
-def test_topic_factor_fallback(mock_kmeans, mock_st, generator):
-    """Ensure topic clustering fallback works if embeddings or clustering fail."""
-    mock_st.return_value.encode.side_effect = Exception("Embedding failed")
-    result = generator.determine_question_count("This is a longer text with several sentences. " * 10)
-    assert isinstance(result, int)
-    assert generator.min_q <= result <= generator.max_q
+    monkeypatch.setattr("ragmint.qa_generator.setup_llm", lambda *_: (DummyLLM(), "gemini"))
 
-def test_generate_qa_for_batch_gemini(generator):
-    """Test LLM batch generation with mocked Gemini output."""
-    fake_response = MagicMock()
-    fake_response.text = json.dumps([
-        {"query": "What is networking?", "expected_answer": "Connecting systems."}
-    ])
-    generator.llm.generate_content.return_value = fake_response
-
-    batch = [{"filename": "doc.txt", "text": "Networking basics"}]
-    result = generator.generate_qa_for_batch(batch)
-    assert isinstance(result, list)
-    assert result[0]["query"].startswith("What")
-
-def test_generate_qa_for_batch_claude(generator):
-    """Test LLM batch generation with mocked Claude output."""
-    generator.backend = "claude"
-    generator.llm.messages.create.return_value = MagicMock(
-        content=[MagicMock(text=json.dumps([
-            {"query": "What is AI?", "expected_answer": "Artificial Intelligence."}
-        ]))]
-    )
-    batch = [{"filename": "doc.txt", "text": "AI models generate QAs."}]
-    result = generator.generate_qa_for_batch(batch)
-    assert len(result) == 1
-    assert "expected_answer" in result[0]
-
-@patch.object(QADataGenerator, "generate_qa_for_batch", return_value=[{"query": "Q?", "expected_answer": "A"}])
-def test_full_generate_pipeline(mock_batch, generator):
-    """Simulate entire generate() workflow including file save."""
-    generator.generate()
-    out_path = Path(generator.output_path)
-    assert out_path.exists()
-    data = json.loads(out_path.read_text())
-    assert isinstance(data, list)
-    assert all("query" in qa for qa in data)
+    generate_validation_qa(docs_path=empty_dir, output_path=output_file, sleep_between_batches=0)
+    data = json.loads(output_file.read_text())
+    assert data == [], "Empty folder should produce empty QA list"
