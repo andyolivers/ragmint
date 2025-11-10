@@ -13,11 +13,24 @@ import time
 import argparse
 from pathlib import Path
 from dotenv import load_dotenv
-
-# --- New imports for topic detection ---
 import numpy as np
 from sklearn.cluster import KMeans
 from sentence_transformers import SentenceTransformer
+import re
+
+
+def extract_json_from_markdown(text: str):
+    """
+    Extract JSON from a markdown-style code block.
+    Returns the parsed JSON, or raises ValueError if not found.
+    """
+    match = re.search(r"```(?:json)?\s*(\[\s*[\s\S]*?\s*\])\s*```", text, re.MULTILINE)
+    if match:
+        json_str = match.group(1)
+        return json.loads(json_str)
+    else:
+        # fallback: try raw text
+        return json.loads(text.strip())
 
 
 class QADataGenerator:
@@ -32,7 +45,11 @@ class QADataGenerator:
         min_q=3,
         max_q=25,
     ):
-        load_dotenv()
+        # --- Load .env optionally ---
+        dotenv_path = Path(".env")
+        if dotenv_path.exists():
+            load_dotenv(dotenv_path)
+
         self.docs_path = docs_path
         self.output_path = output_path
         self.llm_model = llm_model
@@ -134,13 +151,14 @@ class QADataGenerator:
                 text_out = getattr(response, "text", None)
                 if not text_out and hasattr(response, "candidates"):
                     text_out = response.candidates[0].content.parts[0].text
-                return json.loads(text_out)
+                return extract_json_from_markdown(text_out)
             elif self.backend == "claude":
                 response = self.llm.messages.create(
                     model="claude-3-opus-20240229",
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=2000,
                 )
+                # return extract_json_from_markdown(text_out)
                 return json.loads(response.content[0].text)
         except Exception as e:
             print(f"[WARN] Failed to parse batch: {e}")

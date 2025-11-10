@@ -1,0 +1,14 @@
+[
+  {
+    "query": "What capability does Artificial Intelligence give to machines?",
+    "expected_answer": "Artificial Intelligence enables machines to learn from data."
+  },
+  {
+    "query": "What is the basis for machines to learn according to the document?",
+    "expected_answer": "Machines learn from data."
+  },
+  {
+    "query": "What does Artificial Intelligence facilitate for machines in relation to data?",
+    "expected_answer": "Artificial Intelligence enables machines to learn from data."
+  }
+]
