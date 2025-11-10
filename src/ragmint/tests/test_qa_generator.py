@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 from ragmint.qa_generator import QADataGenerator
 
+# ---------------- Fixtures ----------------
 
 @pytest.fixture
 def tmp_docs(tmp_path):
@@ -14,7 +15,6 @@ def tmp_docs(tmp_path):
     (docs_dir / "doc2.txt").write_text("AI models can generate question-answer datasets.")
     return docs_dir
 
-
 @pytest.fixture
 def generator(tmp_docs, tmp_path):
     """Initialize QADataGenerator with fake keys and temp paths."""
@@ -23,16 +23,17 @@ def generator(tmp_docs, tmp_path):
         output_path=str(tmp_path / "validation_qa.json"),
         batch_size=2,
     )
+    # Inject fake LLM to bypass API
     gen.backend = "gemini"
-    gen.llm = MagicMock()  # prevent real API call
+    gen.llm = MagicMock()
     return gen
 
+# ---------------- Tests ----------------
 
 def test_read_corpus(generator):
     docs = generator.read_corpus()
     assert len(docs) == 2
     assert all("filename" in d and "text" in d for d in docs)
-
 
 def test_determine_question_count_varies(generator):
     short = "short text"
@@ -43,7 +44,6 @@ def test_determine_question_count_varies(generator):
     assert generator.min_q <= q_long <= generator.max_q
     assert q_long >= q_short  # longer text → more questions
 
-
 @patch("ragmint.qa_generator.SentenceTransformer")
 @patch("ragmint.qa_generator.KMeans")
 def test_topic_factor_fallback(mock_kmeans, mock_st, generator):
@@ -52,7 +52,6 @@ def test_topic_factor_fallback(mock_kmeans, mock_st, generator):
     result = generator.determine_question_count("This is a longer text with several sentences. " * 10)
     assert isinstance(result, int)
     assert generator.min_q <= result <= generator.max_q
-
 
 def test_generate_qa_for_batch_gemini(generator):
     """Test LLM batch generation with mocked Gemini output."""
@@ -67,7 +66,6 @@ def test_generate_qa_for_batch_gemini(generator):
     assert isinstance(result, list)
     assert result[0]["query"].startswith("What")
 
-
 def test_generate_qa_for_batch_claude(generator):
     """Test LLM batch generation with mocked Claude output."""
     generator.backend = "claude"
@@ -80,7 +78,6 @@ def test_generate_qa_for_batch_claude(generator):
     result = generator.generate_qa_for_batch(batch)
     assert len(result) == 1
     assert "expected_answer" in result[0]
-
 
 @patch.object(QADataGenerator, "generate_qa_for_batch", return_value=[{"query": "Q?", "expected_answer": "A"}])
 def test_full_generate_pipeline(mock_batch, generator):
