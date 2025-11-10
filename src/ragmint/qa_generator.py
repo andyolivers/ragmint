@@ -18,20 +18,20 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sentence_transformers import SentenceTransformer
 
-# --- Load .env if available ---
-load_dotenv()
-
-
 # ---------- Utility functions ----------
 
 def extract_json_from_markdown(text: str):
     """Extract JSON from a markdown-style code block."""
+    if text is None:
+        raise ValueError("No text provided to parse from LLM response.")
     match = re.search(r"```(?:json)?\s*(\[\s*[\s\S]*?\s*\])\s*```", text, re.MULTILINE)
     if match:
         json_str = match.group(1)
         return json.loads(json_str)
     else:
-        return json.loads(text.strip())
+        cleaned = re.sub(r"^```\w*\n", "", text).strip()
+        cleaned = re.sub(r"\n```$", "", cleaned).strip()
+        return json.loads(cleaned)
 
 
 def read_corpus(docs_path: str):
@@ -75,10 +75,18 @@ def determine_question_count(text: str, embedder, min_q=3, max_q=25):
     return int(max(min_q, min(question_count, max_q)))
 
 
-def setup_llm(llm_model="gemini-2.5-flash-lite"):
-    """Configure Gemini or Claude based on available environment keys."""
-    google_key = os.getenv("GOOGLE_API_KEY")
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+def setup_llm(llm_model="gemini-2.5-flash-lite", google_key: str | None = None, anthropic_key: str | None = None):
+    """
+    Configure Gemini or Claude based on available environment keys.
+
+    - Always calls load_dotenv() so .env is read at call time (mirrors interpretability module).
+    - Explicit keys passed here take precedence over environment variables.
+    """
+    # ensure .env is read now (so callers that import module earlier still pick it up)
+    load_dotenv(override=False)
+
+    google_key = google_key or os.getenv("GOOGLE_API_KEY")
+    anthropic_key = anthropic_key or os.getenv("ANTHROPIC_API_KEY")
 
     if google_key:
         import google.generativeai as genai
@@ -92,11 +100,15 @@ def setup_llm(llm_model="gemini-2.5-flash-lite"):
         return llm, "claude"
 
     else:
-        raise ValueError("Set ANTHROPIC_API_KEY or GOOGLE_API_KEY in your environment.")
+        raise ValueError("Set ANTHROPIC_API_KEY or GOOGLE_API_KEY in your environment or pass keys explicitly.")
 
 
 def generate_qa_for_batch(batch, llm, backend, embedder, min_q=3, max_q=25):
     """Send one LLM call for a batch of documents."""
+    if backend is None or llm is None:
+        # No LLM configured — return empty result for this batch.
+        return []
+
     prompt_texts = []
     for doc in batch:
         n_questions = determine_question_count(doc["text"], embedder, min_q, max_q)
@@ -114,6 +126,7 @@ def generate_qa_for_batch(batch, llm, backend, embedder, min_q=3, max_q=25):
             response = llm.generate_content(prompt)
             text_out = getattr(response, "text", None)
             if not text_out and hasattr(response, "candidates"):
+                # handle alternative Gemini response shape
                 text_out = response.candidates[0].content.parts[0].text
             return extract_json_from_markdown(text_out)
 
@@ -123,7 +136,9 @@ def generate_qa_for_batch(batch, llm, backend, embedder, min_q=3, max_q=25):
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=2000,
             )
-            return json.loads(response.content[0].text)
+            # anthopic response shape
+            text_out = getattr(response.content[0], "text", None) or response.content[0]
+            return extract_json_from_markdown(text_out)
 
     except Exception as e:
         print(f"[WARN] Failed to parse batch: {e}")
@@ -145,12 +160,26 @@ def generate_validation_qa(
     sleep_between_batches=2,
     min_q=3,
     max_q=25,
+    google_key: str | None = None,
+    anthropic_key: str | None = None,
+    skip_llm: bool = False,
 ):
-    """Main pipeline to generate QAs."""
-    embedder = SentenceTransformer("all-MiniLM-L6-v2")
-    llm, backend = setup_llm(llm_model)
-    all_qa = []
+    """
+    Main pipeline to generate QAs.
 
+    - pass google_key / anthropic_key to avoid relying on .env
+    - set skip_llm=True to run without LLM (useful in tests/CI)
+    """
+    embedder = SentenceTransformer("all-MiniLM-L6-v2")
+
+    if skip_llm:
+        llm = None
+        backend = None
+        print("[INFO] skip_llm=True → no LLM will be initialized; output will be empty.")
+    else:
+        llm, backend = setup_llm(llm_model=llm_model, google_key=google_key, anthropic_key=anthropic_key)
+
+    all_qa = []
     corpus = read_corpus(docs_path)
     print(f"[INFO] Loaded {len(corpus)} documents from {docs_path}")
 
@@ -174,15 +203,18 @@ def main():
     parser.add_argument("--sleep", type=int, default=2)
     parser.add_argument("--min_q", type=int, default=3)
     parser.add_argument("--max_q", type=int, default=25)
+    parser.add_argument("--skip_llm", action="store_true", help="Run without initializing an LLM (for tests)")
     args = parser.parse_args()
 
     generate_validation_qa(
         docs_path=args.docs_path,
         output_path=args.output,
+        llm_model="gemini-2.5-flash-lite",
         batch_size=args.batch_size,
         sleep_between_batches=args.sleep,
         min_q=args.min_q,
         max_q=args.max_q,
+        skip_llm=args.skip_llm,
     )
 
 
