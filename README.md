@@ -11,6 +11,7 @@
 ![Status](https://img.shields.io/badge/Status-Active-success)
 ![PyPI](https://img.shields.io/pypi/v/ragmint?color=blue)
 ![Docs](https://img.shields.io/badge/docs-latest-blueviolet)
+![Gradio](https://img.shields.io/badge/Gradio-Active-orange)
 
 
 **Ragmint** (Retrieval-Augmented Generation Model Inspection & Tuning) is a modular, developer-friendly Python library for **evaluating, optimizing, and tuning RAG (Retrieval-Augmented Generation) pipelines**.
@@ -280,11 +281,14 @@ print("Best configuration after testing:", best_config)
 print("All trial results:", results)
 ```
 ---
-## 🧠 Live Dashboard (Gradio)
+## 🧠 Gradio Dashboard
 Ragmint includes a visual dashboard to AutoTune and analyze RAG pipelines.
 
 <p align="center">
-  <img src="/assets/images/dashboard-preview.png" width="80%" alt="Ragmint Gradio App Preview">
+  <img src="src/ragmint/assets/img/app1.png" width="80%" alt="Ragmint Gradio App Preview">
+</p>
+<p align="center">
+  <img src="src/ragmint/assets/img/app2.png" width="80%" alt="Ragmint Gradio App Preview">
 </p>
 
 ---

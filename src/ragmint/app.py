@@ -1,16 +1,3 @@
-"""
-RAGMint Dashboard
------------------
-Gradio UI for AutoRAG / RAGMint:
-- Upload corpus files
-- Run recommend() (autotuner quick suggestion)
-- Run full optimize() using grid/random/bayesian
-- View leaderboard entries (local JSONL)
-- Request LLM explanation for the best run
-- Simple analytics: score histogram, latency summary, runs over time
-
-"""
-
 import os
 import json
 import time
@@ -23,15 +10,18 @@ from ragmint.autotuner import AutoRAGTuner
 from ragmint.tuner import RAGMint
 from ragmint.leaderboard import Leaderboard
 from ragmint.explainer import explain_results
+from ragmint.qa_generator import generate_validation_qa
 from matplotlib.ticker import MultipleLocator
 import yaml
+from pathspec import PathSpec
 
 # ----------------------------------------------------------------------
 # CONFIGURATION
 # ----------------------------------------------------------------------
 DATA_DIR = "data/docs"
-LEADERBOARD_PATH = "data/leaderboard.jsonl"
-LOGO_PATH = "src/ragmint/assets/img/ragmint_logo.png"
+VAL_DIR = "data/docs"
+LEADERBOARD_PATH = "leaderboard.jsonl"
+LOGO_PATH = "https://raw.githubusercontent.com/andyolivers/ragmint/main/src/ragmint/assets/img/ragmint_logo.png"
 ENV_PATH = ".env"
 
 BG_COLOR = "#F7F4ED"       # soft beige background
@@ -46,6 +36,22 @@ load_dotenv(ENV_PATH)
 # ----------------------------------------------------------------------
 # UTILITY FUNCTIONS
 # ----------------------------------------------------------------------
+def generate_qa_dataset():
+    try:
+        output_path = os.path.join(DATA_DIR, "validation_qa.json")
+        generate_validation_qa(
+            docs_path=DATA_DIR,                   # folder with .txt documents
+            output_path=output_path,              # output JSON
+            llm_model="gemini-2.5-flash-lite",    # or "claude-3-opus-20240229"
+            batch_size=5,
+            sleep_between_batches=2,
+            min_q=3,
+            max_q=25
+        )
+        return f"✅ QA dataset generated at {output_path}"
+    except Exception as e:
+        return f"⚠️ Error generating QA dataset: {str(e)}"
+
 def save_uploaded_files(files):
     saved_files = []
     for f in files:
@@ -71,6 +77,7 @@ def toggle_validation_inputs(choice):
     return (
         gr.update(visible=(choice == "Upload JSON")),
         gr.update(visible=(choice == "HuggingFace Dataset"), interactive=True),
+        gr.update(visible=(choice == "LLM Dataset Generator")),
         f"Selected: {choice}"
     )
 
@@ -180,12 +187,13 @@ def do_auto_tune(
     start_time = time.time()
 
     validation_set = None
-    if validation_choice == "Upload JSON":
+    if validation_choice == "Upload JSON" or validation_choice == "LLM Dataset Generator":
         validation_path = os.path.join(DATA_DIR, "validation_qa.json")
         if os.path.exists(validation_path):
             validation_set = validation_path
     elif validation_choice == "HuggingFace Dataset" and hf_dataset:
         validation_set = hf_dataset.strip()
+
 
     try:
         best, results = rag.optimize(
@@ -244,10 +252,17 @@ def show_leaderboard_table():
     df = read_leaderboard_df()
     if df.empty:
         return "No runs yet.", ""
-    table = df[["run_id", "timestamp", "best_score", "model", "best_config"]].sort_values(
-        "best_score", ascending=False
+
+    # Convert dict -> pretty JSON string for display
+    df["best_config"] = df["best_config"].apply(
+        lambda x: json.dumps(x, indent=2) if isinstance(x, dict) else str(x)
     )
+
+    table = df[["run_id", "timestamp", "best_score", "model", "best_config"]] \
+                .sort_values("best_score", ascending=False)
+
     return table, df.to_json(orient="records", indent=2)
+
 
 
 def do_explain(run_id: str, llm_model: str = "gemini-2.5-flash-lite"):
@@ -280,6 +295,45 @@ def analytics_overview():
         "avg_trial_latency": float(avg_latency) if avg_latency else None,
     }
     return json.dumps(summary, indent=2)
+
+def list_corpus_files():
+    try:
+        gitignore_path = ".gitignore"
+
+        # Load .gitignore patterns if the file exists
+        if os.path.exists(gitignore_path):
+            with open(gitignore_path, "r") as f:
+                spec = PathSpec.from_lines("gitwildmatch", f)
+        else:
+            spec = None
+
+        all_items = os.listdir(DATA_DIR)
+        files = []
+
+        for item in all_items:
+            full_path = os.path.join(DATA_DIR, item)
+
+            # Skip validation file
+            if item == "validation_qa.json":
+                continue
+
+            # Skip directories
+            if os.path.isdir(full_path):
+                continue
+
+            # If .gitignore exists → filter ignored files
+            if spec and spec.match_file(item):
+                continue
+
+            files.append(item)
+
+        if not files:
+            return "No corpus files yet."
+
+        return "\n".join(files)
+
+    except Exception as e:
+        return f"Error reading files: {str(e)}"
 
 
 # ----------------------------------------------------------------------
@@ -357,13 +411,16 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Ocean()) as demo:
                 save_api_btn = gr.Button("Save API Key", variant="primary")
 
 
-
                 gr.Markdown("### 3️⃣ Validation Dataset (Optional)")
                 validation_source = gr.Radio(
                     label="Validation Source",
-                    choices=["Default File","Upload JSON","HuggingFace Dataset"],
+                    choices=["Default File", "Upload JSON", "HuggingFace Dataset", "LLM Dataset Generator"],
                     value="Default File"
                 )
+
+                with gr.Row(visible=False) as llm_generate_row:
+                    generate_qa_btn = gr.Button("Generate QA Dataset", variant="primary")
+                    generate_qa_status = gr.Textbox(label="Generation Status", interactive=False)
 
                 with gr.Row(visible=False) as validation_upload_row:
                     validation_file = gr.File(
@@ -389,19 +446,47 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Ocean()) as demo:
                 upload_status = gr.Textbox(label="File Upload Status", interactive=False)
                 save_status = gr.Textbox(label="API Key Status", interactive=False)
                 validation_status = gr.Textbox(label="Validation Selection", interactive=False)
+                corpus_files_box = gr.Textbox(label="Corpus Files", interactive=False)
+                corpus_files_box.value = list_corpus_files()
 
         # --- Event bindings ---
-        upload_btn.click(fn=handle_upload, inputs=[uploader], outputs=[upload_status])
+        upload_btn.click(
+            fn=handle_upload,
+            inputs=[uploader],
+            outputs=[upload_status]
+        ).then(
+            fn=list_corpus_files,
+            inputs=None,
+            outputs=[corpus_files_box]
+        )
         save_api_btn.click(
             fn=save_api_key,
             inputs=[api_key_input, api_provider],
             outputs=[save_status]
         )
-        upload_validation_btn.click(fn=handle_validation_upload, inputs=[validation_file], outputs=[validation_status])
+        upload_validation_btn.click(
+            fn=handle_validation_upload,
+            inputs=[validation_file],
+            outputs=[validation_status]
+        ).then(
+            fn=list_corpus_files,
+            inputs=None,
+            outputs=[corpus_files_box]
+        )
         validation_source.change(
             fn=toggle_validation_inputs,
             inputs=[validation_source],
-            outputs=[validation_upload_row, validation_hf_dataset, validation_status]
+            outputs=[validation_upload_row, validation_hf_dataset, llm_generate_row, validation_status]
+        )
+
+        generate_qa_btn.click(
+            fn=generate_qa_dataset,
+            inputs=None,
+            outputs=[generate_qa_status]
+        ).then(
+            fn=list_corpus_files,
+            inputs=None,
+            outputs=[corpus_files_box]
         )
 
     # --- Unified AutoTune ---
