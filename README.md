@@ -1,7 +1,7 @@
 # Ragmint
 
 <p align="center">
-  <img src="src/ragmint/assets/img/ragmint-banner.png" width="auto" height="70px" alt="Ragmint Banner">
+  <img src="https://raw.githubusercontent.com/andyolivers/ragmint/main/src/ragmint/assets/img/ragmint-banner.png" width="auto" height="70px" alt="Ragmint Banner">
 </p>
 
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
@@ -285,10 +285,10 @@ print("All trial results:", results)
 Ragmint includes a visual dashboard to AutoTune and analyze RAG pipelines.
 
 <p align="center">
-  <img src="src/ragmint/assets/img/app1.png" width="80%" alt="Ragmint Gradio App Preview">
+  <img src="https://raw.githubusercontent.com/andyolivers/ragmint/main/src/ragmint/assets/img/app1.png" width="80%" alt="Ragmint Gradio App Preview">
 </p>
 <p align="center">
-  <img src="src/ragmint/assets/img/app2.png" width="80%" alt="Ragmint Gradio App Preview">
+  <img src="https://raw.githubusercontent.com/andyolivers/ragmint/main/src/ragmint/assets/img/app2.png" width="80%" alt="Ragmint Gradio App Preview">
 </p>
 
 ---
