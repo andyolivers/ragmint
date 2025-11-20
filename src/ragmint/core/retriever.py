@@ -83,6 +83,16 @@ class Retriever:
             if chromadb is None:
                 raise ImportError("chromadb not installed. Run `pip install chromadb`.")
             self.client = chromadb.Client()
+
+            # Delete the collection if it exists
+            try:
+                self.client.get_collection(name="ragmint_retriever")
+                self.client.delete_collection(name="ragmint_retriever")
+            except ValueError:
+                # Collection does not exist, ignore
+                pass
+
+
             self.collection = self.client.create_collection(name="ragmint_retriever")
             for i, doc in enumerate(self.documents):
                 self.collection.add(
@@ -146,6 +156,7 @@ class Retriever:
             return [{"text": d, "score": 1 - s} for d, s in zip(docs, scores)]
 
         elif self.backend == "sklearn":
+            top_k = min(top_k, len(self.documents))  # <- clamp
             distances, indices = self.index.query([query_vec], k=top_k)
             scores = 1 - distances[0]
             return [{"text": self.documents[int(i)], "score": float(scores[j])} for j, i in enumerate(indices[0])]
