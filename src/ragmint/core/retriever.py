@@ -92,7 +92,6 @@ class Retriever:
                 # Collection does not exist, ignore
                 pass
 
-
             self.collection = self.client.create_collection(name="ragmint_retriever")
             for i, doc in enumerate(self.documents):
                 self.collection.add(
@@ -156,7 +155,13 @@ class Retriever:
             return [{"text": d, "score": 1 - s} for d, s in zip(docs, scores)]
 
         elif self.backend == "sklearn":
-            top_k = min(top_k, len(self.documents))  # <- clamp
+            n_docs = len(self.documents)
+            if n_docs == 0 or self.embeddings is None or self.embeddings.size == 0:
+                return [{"text": "", "score": 0.0}]
+
+            # Clamp top_k to the number of documents
+            top_k = min(top_k, n_docs)
+
             distances, indices = self.index.query([query_vec], k=top_k)
             scores = 1 - distances[0]
             return [{"text": self.documents[int(i)], "score": float(scores[j])} for j, i in enumerate(indices[0])]
