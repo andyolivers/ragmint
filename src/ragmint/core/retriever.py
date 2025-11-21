@@ -88,7 +88,7 @@ class Retriever:
             try:
                 self.client.get_collection(name="ragmint_retriever")
                 self.client.delete_collection(name="ragmint_retriever")
-            except ValueError:
+            except chromadb.errors.NotFoundError:
                 # Collection does not exist, ignore
                 pass
 
